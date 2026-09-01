@@ -1,0 +1,207 @@
+diff --git a/opt/apps/com.douyin.otohime/files/resources/app/dy-tray.js b/opt/apps/com.douyin.otohime/files/resources/app/dy-tray.js
+--- a/opt/apps/com.douyin.otohime/files/resources/app/dy-tray.js
++++ b/opt/apps/com.douyin.otohime/files/resources/app/dy-tray.js
+@@ -1,7 +1,6 @@
+ // tray.js
+-const { Tray, Menu, nativeImage, dialog, shell } = require('electron');
++const { Tray, Menu, nativeImage, dialog, shell, Notification } = require('electron');
+ const AutoLaunch = require('auto-launch');
+-const { exec } = require('child_process');
+ const path = require('path');
+ const fs = require('fs');
+ 
+@@ -10,6 +9,11 @@ function createTray({ app, win, store }) {
+ function createTray({ app, win, store }) {
+     const iconPath = path.join(__dirname, 'douyin.png');
+     const icon = nativeImage.createFromPath(iconPath);
++    const notify = (title, body = '') => {
++        if (Notification.isSupported()) {
++            new Notification({ title, body, icon: iconPath }).show();
++        }
++    };
+ 
+     tray = new Tray(icon);
+ 
+@@ -28,16 +32,16 @@ function createTray({ app, win, store }) {
+ 
+                 const autRunDy = new AutoLaunch({
+                     name: 'douyin',
+-                    path: '/opt/apps/com.douyin.otohime/files/douyin',
++                    path: process.env.DOUYIN_EXECUTABLE || process.execPath,
+                     isHidden: false
+                 })
+ 
+                 if (menuItem.checked) {
+                     autRunDy.enable()
+-                    if (isLinux) exec('notify-send "已开机自启" "开机时自动启动抖音" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('已开机自启', '开机时自动启动抖音');
+                 } else {
+                     autRunDy.disable()
+-                    if (isLinux) exec('notify-send "已禁用开机自启" "开机时不启动抖音" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('已禁用开机自启', '开机时不启动抖音');
+                 }
+             }
+         },
+@@ -49,10 +53,10 @@ function createTray({ app, win, store }) {
+             click: (menuItem) => {
+                 if (menuItem.checked) {
+                     store.set('gpu', true);
+-                    if (isLinux) exec('notify-send "已启用GPU加速" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('已启用GPU加速');
+                 } else {
+                     store.set('gpu', false);
+-                    if (isLinux) exec('notify-send "已禁用GPU加速" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('已禁用GPU加速');
+                 }
+                 app.relaunch();
+                 app.exit(0);
+@@ -64,14 +68,14 @@ function createTray({ app, win, store }) {
+             click: () => {
+                 const dyConfigPath = app.getPath('userData')
+                 if (!fs.existsSync(dyConfigPath)) {
+-                    if (isLinux) exec('notify-send "清除失败" "缓存目录不存在或已清除" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('清除失败', '缓存目录不存在或已清除');
+                     return;
+                 }
+                 try {
+                     fs.rmSync(dyConfigPath, { recursive: true, force: true });
+-                    if (isLinux) exec('notify-send "清除成功" "抖音缓存已清除" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('清除成功', '抖音缓存已清除');
+                 } catch (e) {
+-                    if (isLinux) exec('notify-send "清除失败" "无法清除缓存: ' + e.message + '" "--app-name=抖音" "--icon=douyin"');
++                    if (isLinux) notify('清除失败', `无法清除缓存: ${e.message}`);
+                 }
+             }
+         },
+diff --git a/opt/apps/com.douyin.otohime/files/resources/app/dy.js b/opt/apps/com.douyin.otohime/files/resources/app/dy.js
+--- a/opt/apps/com.douyin.otohime/files/resources/app/dy.js
++++ b/opt/apps/com.douyin.otohime/files/resources/app/dy.js
+@@ -4,13 +4,21 @@ const path = require('path')
+ 
+ const { createTray, destroyTray } = require('./dy-tray.js')
+ 
+-const { dyjs } = require('./dy-js.js')
+-
+ const { default: Store } = require('electron-store')
+ 
+ // 共享 Store 实例
+ const store = new Store();
+ 
++const isTrustedNavigation = (rawUrl) => {
++    try {
++        const url = new URL(rawUrl)
++        return url.protocol === 'https:' &&
++            (url.hostname === 'douyin.com' || url.hostname.endsWith('.douyin.com'))
++    } catch {
++        return false
++    }
++}
++
+ function createWindow () {
+     const primaryDisplay = screen.getPrimaryDisplay()
+     const { width, height } = primaryDisplay.workAreaSize
+@@ -32,9 +40,11 @@ function createWindow () {
+         } : {}),
+         backgroundColor: '#161823',
+         webPreferences: {
+-            nodeIntegration: true,
+-            contextIsolation: false,
+-            webSecurity: false
++            preload: path.join(__dirname, 'preload.js'),
++            nodeIntegration: false,
++            contextIsolation: true,
++            sandbox: true,
++            webSecurity: true
+         }
+     })
+   
+@@ -48,17 +58,14 @@ function createWindow () {
+ 
+     win.webContents.loadURL('https://www.douyin.com/?recommend=1')
+ 
+-    win.webContents.on('will-navigate', (event, url) => {
+-        if (url.startsWith('bytedance://')) {
++    const guardNavigation = (event, url) => {
++        if (!isTrustedNavigation(url)) {
+             event.preventDefault()
+         }
+-    });
++    }
+ 
+-    win.webContents.on('will-redirect', (event, url) => {
+-        if (url.startsWith('bytedance://')) {
+-            event.preventDefault()
+-        }
+-    });
++    win.webContents.on('will-navigate', guardNavigation)
++    win.webContents.on('will-redirect', guardNavigation)
+ 
+     ipcMain.on('go-back', () => {
+         win.webContents.navigationHistory.goBack()
+@@ -91,10 +98,6 @@ function createWindow () {
+         alwaysOnTop: win.isAlwaysOnTop(),
+     }));
+ 
+-    win.webContents.on('did-finish-load', async () => {
+-        await dyjs(win.webContents)
+-    });
+-
+     // URL 路由规则（按优先级匹配）
+     win.webContents.setWindowOpenHandler( ({url}) => {
+         // bytedance 协议：拒绝
+@@ -119,31 +122,21 @@ function createWindow () {
+         }
+ 
+         // 在主窗口加载的 URL
+-        if (url.startsWith('https://www.douyin.com/help')) {
+-            win.loadURL('https://www.douyin.com/help');
+-            return { action: 'deny' };
+-        }
++        if (isTrustedNavigation(url)) {
++            const target = new URL(url)
+ 
+-        if (/douyin\.com\/user\/[^/]+/.test(url)) {
+-            win.loadURL(url);
+-            return { action: 'deny' };
+-        }
+-        
+-        // 默认：拒绝并设置弹窗参数
+-        return {
+-            action: 'deny',
+-            overrideBrowserWindowOptions: {
+-                width: Math.floor(width * 0.88),
+-                height: Math.floor(height * 0.89),
+-                icon: path.join(__dirname, 'douyin.png'),
+-                frame: false,
+-                webPreferences: {
+-                    nodeIntegration: true,
+-                    contextIsolation: false,
+-                    webSecurity: false
+-                }
++            if (target.pathname.startsWith('/help')) {
++                win.loadURL('https://www.douyin.com/help')
++                return { action: 'deny' }
++            }
++
++            if (/^\/user\/[^/]+/.test(target.pathname)) {
++                win.loadURL(url)
++                return { action: 'deny' }
+             }
+         }
++
++        return { action: 'deny' }
+     });
+ }
+ 
+@@ -174,6 +167,11 @@ const gpuEnabled = store.get('gpu', true);
+ 
+ app.whenReady().then(() => {
+ 
++    session.defaultSession.setPermissionCheckHandler(() => false)
++    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
++        callback(false)
++    })
++
+     session.defaultSession.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) douyin/8.3.0 Chrome/136.0.7103.59 Electron/36.4.0-rs.30.release.pgo.2 TTElectron/36.4.0-rs.30.release.pgo.2 Safari/537.36 awemePcClient/8.3.0 buildId/432763571 osName/Windows')
+ 
+     protocol.handle('bytedance', (request) => {
