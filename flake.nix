@@ -1,5 +1,5 @@
 {
-  description = "cliecy's personal NUR package repository";
+  description = "cliecy's personal Nix package repository";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
