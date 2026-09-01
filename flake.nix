@@ -7,19 +7,23 @@
     system = "x86_64-linux";
     pkgs = import nixpkgs {
       inherit system;
-      config.allowUnfreePredicate = package: nixpkgs.lib.getName package == "douyin-bin";
+      config.allowUnfreePredicate = package:
+        builtins.elem (nixpkgs.lib.getName package) [
+          "chatgpt-bin"
+          "douyin-bin"
+        ];
     };
     repository = import ./default.nix {inherit pkgs;};
   in {
     legacyPackages.${system} = repository;
 
     packages.${system} = {
-      inherit (repository) douyin-bin venera-bin;
+      inherit (repository) chatgpt-bin douyin-bin venera-bin;
       default = repository.venera-bin;
     };
 
     checks.${system} = {
-      inherit (repository) douyin-bin venera-bin;
+      inherit (repository) chatgpt-bin douyin-bin venera-bin;
     };
 
     overlays.default = final: _prev: {
