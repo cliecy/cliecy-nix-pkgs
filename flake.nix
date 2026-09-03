@@ -9,8 +9,8 @@
       inherit system;
       config.allowUnfreePredicate = package:
         builtins.elem (nixpkgs.lib.getName package) [
-          "chatgpt-bin"
           "douyin-bin"
+          "qq"
         ];
     };
     repository = import ./default.nix {inherit pkgs;};
@@ -18,12 +18,12 @@
     legacyPackages.${system} = repository;
 
     packages.${system} = {
-      inherit (repository) chatgpt-bin douyin-bin venera-bin;
+      inherit (repository) douyin-bin qq venera-bin;
       default = repository.venera-bin;
     };
 
     checks.${system} = {
-      inherit (repository) chatgpt-bin douyin-bin venera-bin;
+      inherit (repository) douyin-bin qq venera-bin;
     };
 
     overlays.default = final: _prev: {

@@ -1,5 +1,5 @@
 {pkgs ? import <nixpkgs> {}}: {
-  chatgpt-bin = pkgs.callPackage ./pkgs/chatgpt-bin {};
   douyin-bin = pkgs.callPackage ./pkgs/douyin-bin {};
+  qq = pkgs.callPackage ./pkgs/qq {};
   venera-bin = pkgs.callPackage ./pkgs/venera-bin {};
 }
