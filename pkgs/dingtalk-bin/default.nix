@@ -40,6 +40,7 @@
   libxt,
   libxmu,
   libxtst,
+  libsForQt5,
   makeDesktopItem,
   makeWrapper,
   nspr,
@@ -51,6 +52,7 @@
   wrapGAppsHook3,
 }: let
   version = "8.1.0.6021101";
+  fcitxQtPluginPath = "${libsForQt5.fcitx5-qt}/${qt5.qtbase.qtPluginPrefix}";
   sources = {
     x86_64-linux = {
       arch = "amd64";
@@ -174,14 +176,17 @@ in
       runHook postInstall
     '';
 
-    # DingTalk opens GTK3 file choosers from its Qt UI. Both wrapper argument
-    # sets are required so GIO can find GTK's compiled GSettings schemas.
+    # DingTalk is forced onto Qt5/X11, so it needs the Fcitx Qt5 input module
+    # even when the surrounding Wayland session intentionally leaves it unset.
+    # Its GTK3 file chooser also needs the GApps wrapper for GSettings schemas.
     preFixup = ''
       makeWrapper "$out/libexec/dingtalk/com.alibabainc.dingtalk" "$out/bin/dingtalk" \
         "''${qtWrapperArgs[@]}" \
         "''${gappsWrapperArgs[@]}" \
         --argv0 com.alibabainc.dingtalk \
         --chdir "$out/libexec/dingtalk" \
+        --set-default QT_IM_MODULE fcitx \
+        --prefix QT_PLUGIN_PATH : "${fcitxQtPluginPath}" \
         --unset WAYLAND_DISPLAY \
         --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath libraries}"
     '';
@@ -190,10 +195,17 @@ in
     installCheckPhase = ''
       runHook preInstallCheck
 
+      test -e "${fcitxQtPluginPath}/platforminputcontexts/libfcitx5platforminputcontextplugin.so"
+
       program="$out/libexec/dingtalk/com.alibabainc.dingtalk"
       mv "$program" "$program.real"
       cat >"$program" <<'EOF'
       #!${stdenv.shell}
+      test "$QT_IM_MODULE" = fcitx
+      case ":$QT_PLUGIN_PATH:" in
+        *":${fcitxQtPluginPath}:"*) ;;
+        *) exit 1 ;;
+      esac
       exec ${lib.getExe' glib "gsettings"} get org.gtk.Settings.FileChooser location-mode
       EOF
       chmod +x "$program"
