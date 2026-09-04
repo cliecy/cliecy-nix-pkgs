@@ -12,6 +12,7 @@
           "dingtalk-bin"
           "douyin-bin"
           "qq"
+          "wecom"
         ];
     };
     repository = import ./default.nix {inherit pkgs;};
@@ -19,12 +20,12 @@
     legacyPackages.${system} = repository;
 
     packages.${system} = {
-      inherit (repository) dingtalk-bin douyin-bin qq venera-bin;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin wecom;
       default = repository.venera-bin;
     };
 
     checks.${system} = {
-      inherit (repository) dingtalk-bin douyin-bin qq venera-bin;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin wecom;
     };
 
     overlays.default = final: _prev: {
