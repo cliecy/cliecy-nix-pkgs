@@ -9,6 +9,7 @@
       inherit system;
       config.allowUnfreePredicate = package:
         builtins.elem (nixpkgs.lib.getName package) [
+          "dingtalk-bin"
           "douyin-bin"
           "qq"
         ];
@@ -18,12 +19,12 @@
     legacyPackages.${system} = repository;
 
     packages.${system} = {
-      inherit (repository) douyin-bin qq venera-bin;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin;
       default = repository.venera-bin;
     };
 
     checks.${system} = {
-      inherit (repository) douyin-bin qq venera-bin;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin;
     };
 
     overlays.default = final: _prev: {
