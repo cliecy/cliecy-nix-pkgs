@@ -48,6 +48,7 @@
   patchelfUnstable,
   qt5,
   udev,
+  wrapGAppsHook3,
 }: let
   version = "8.1.0.6021101";
   sources = {
@@ -126,6 +127,7 @@ in
     dontConfigure = true;
     dontBuild = true;
     dontStrip = true;
+    dontWrapGApps = true;
     dontWrapQtApps = true;
 
     nativeBuildInputs = [
@@ -135,6 +137,7 @@ in
       makeWrapper
       patchelfUnstable
       qt5.wrapQtAppsHook
+      wrapGAppsHook3
     ];
 
     buildInputs = libraries;
@@ -163,19 +166,42 @@ in
       patchelf --clear-execstack "$out/libexec/dingtalk/dingtalk_dll.so"
       patchelf --clear-execstack "$out/libexec/dingtalk/libconference_new.so"
 
-      makeWrapper "$out/libexec/dingtalk/com.alibabainc.dingtalk" "$out/bin/dingtalk" \
-        "''${qtWrapperArgs[@]}" \
-        --argv0 com.alibabainc.dingtalk \
-        --chdir "$out/libexec/dingtalk" \
-        --unset WAYLAND_DISPLAY \
-        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath libraries}"
-
       install -Dm644 "$out/libexec/dingtalk/Resources/image/common/about/logo.png" \
         "$out/share/icons/hicolor/512x512/apps/dingtalk.png"
       install -Dm644 "${serviceTerms}" \
         "$out/share/licenses/dingtalk/service-terms-zh.html"
 
       runHook postInstall
+    '';
+
+    # DingTalk opens GTK3 file choosers from its Qt UI. Both wrapper argument
+    # sets are required so GIO can find GTK's compiled GSettings schemas.
+    preFixup = ''
+      makeWrapper "$out/libexec/dingtalk/com.alibabainc.dingtalk" "$out/bin/dingtalk" \
+        "''${qtWrapperArgs[@]}" \
+        "''${gappsWrapperArgs[@]}" \
+        --argv0 com.alibabainc.dingtalk \
+        --chdir "$out/libexec/dingtalk" \
+        --unset WAYLAND_DISPLAY \
+        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath libraries}"
+    '';
+
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+
+      program="$out/libexec/dingtalk/com.alibabainc.dingtalk"
+      mv "$program" "$program.real"
+      cat >"$program" <<'EOF'
+      #!${stdenv.shell}
+      exec ${lib.getExe' glib "gsettings"} get org.gtk.Settings.FileChooser location-mode
+      EOF
+      chmod +x "$program"
+
+      test "$(GSETTINGS_BACKEND=memory "$out/bin/dingtalk")" = "'path-bar'"
+      mv "$program.real" "$program"
+
+      runHook postInstallCheck
     '';
 
     # These belong to an unused bundled GTK2 OpenGL extension. The application
