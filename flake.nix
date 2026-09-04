@@ -20,12 +20,12 @@
     legacyPackages.${system} = repository;
 
     packages.${system} = {
-      inherit (repository) dingtalk-bin douyin-bin qq venera-bin wecom;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin venera-ssr-bin wecom;
       default = repository.venera-bin;
     };
 
     checks.${system} = {
-      inherit (repository) dingtalk-bin douyin-bin qq venera-bin wecom;
+      inherit (repository) dingtalk-bin douyin-bin qq venera-bin venera-ssr-bin wecom;
     };
 
     overlays.default = final: _prev: {

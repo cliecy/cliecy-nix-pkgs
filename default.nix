@@ -4,4 +4,5 @@
   qq = pkgs.callPackage ./pkgs/qq {};
   wecom = pkgs.callPackage ./pkgs/wecom {};
   venera-bin = pkgs.callPackage ./pkgs/venera-bin {};
+  venera-ssr-bin = pkgs.callPackage ./pkgs/venera-ssr-bin {};
 }
